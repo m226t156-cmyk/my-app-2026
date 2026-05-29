@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ro-cal (ローカル) - 森 of 秘密を共有するご近所カフェSNS</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind Configuration for Custom Forest/Waterfall Theme -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            forest: {
+              50: '#f3f7f4',   // 森 of 朝露（爽やかな淡い白緑）
+              100: '#e2ede6',  // 朝霧 of 淡いグリーン
+              200: '#c5dbcc',  // 苔むす若葉
+              700: '#1b4332',  // 豊かな木々の深緑
+              800: '#153528',  // 深い森 of シェード
+              900: '#0c2218',  // 神秘的な原生林の最深部
+            },
+            wood: {
+              100: '#f5f0eb',  // 明るい木肌
+              700: '#5c4033',  // 巨木のダークブラウン
+              800: '#4a3227',  // 深みのある樹皮
+              900: '#38231a',  // 太古の幹
+              950: '#1f110a',  // 湿った土と巨木の根元
+            },
+            water: {
+              50: '#f0f9ff',   // 滝しぶきの清涼な白青
+              100: '#e0f2fe',  // 澄んだせせらぎ
+              500: '#0ea5e9',  // 爽やかな滝のブルー
+              600: '#0284c7',  // 神秘的な滝の淵の深い青
+              800: '#075985',  // 滝底のコバルト
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet CSS & JS for Interactive Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* モザイク（ボカシ）効果 */
+    .locked-blur {
+      filter: blur(12px) contrast(1.1);
+      pointer-events: none;
+      user-select: none;
+    }
+    /* スクロールバーの森林テーマ調整 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f3f7f4;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1b4332;
+      border-radius: 10px;
+    }
+    /* リーフレットマップのスタイル調整 */
+    .leaflet-container {
+      font-family: inherit;
+    }
+    .leaflet-bar a {
+      background-color: #0c2218 !important;
+      color: #f3f7f4 !important;
+      border-bottom: 1px solid #1b4332 !important;
+    }
+  </style>
+</head>
+<body class="bg-forest-50 text-wood-950 min-h-screen flex flex-col font-sans transition-colors duration-300">
+
+  <!-- 1. 森 of 登記所（初期ログイン・プロフィール作成画面） -->
+  <div id="loginScreen" class="fixed inset-0 bg-forest-900/95 backdrop-blur-md z-[10000] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-forest-100 flex flex-col gap-6 relative overflow-hidden">
+      <!-- 背景にうっすらと森 of アイコン装飾 -->
+      <div class="absolute -right-10 -bottom-10 text-forest-50 opacity-10 pointer-events-none">
+        <i data-lucide="trees" class="w-48 h-48"></i>
+      </div>
+
+      <div class="text-center">
+        <div class="bg-forest-700 text-white p-3 rounded-2xl inline-block mx-auto mb-3 shadow-lg shadow-forest-900/20">
+          <i data-lucide="compass" class="w-8 h-8"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-forest-900">森の散策者として登記する</h2>
+        <p class="text-xs text-forest-700 mt-1">JR・地下鉄・私鉄・叡山電鉄対応、ご近所限定カフェSNS「Ro-cal」</p>
+      </div>
+
+      <form id="loginForm" class="space-y-4">
+        <!-- ユーザー名入力 -->
+        <div>
+          <label class="block text-xs font-bold text-wood-800 mb-1 flex items-center gap-1">
+            <i data-lucide="user" class="w-3.5 h-3.5 text-forest-700"></i>
+            あなたの散策名（ユーザー名）
+          </label>
+          <input type="text" id="usernameInput" required placeholder="例：コモレビさん" 
+            class="w-full text-sm px-4 py-3 bg-forest-50 border border-forest-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700">
+        </div>
+
+        <!-- 最寄駅入力 -->
+        <div>
+          <label class="block text-xs font-bold text-wood-800 mb-1 flex items-center gap-1">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-forest-700"></i>
+            活動拠点の最寄駅（叡山電鉄も全駅対応！）
+          </label>
+          <div class="relative">
+            <input type="text" id="stationInput" required placeholder="例：京都精華大前駅、一乗寺駅、出町柳駅、下北沢駅 など" 
+              class="w-full text-sm px-4 py-3 bg-forest-50 border border-forest-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700">
+            <button type="button" id="detectGpsBtn" class="absolute right-2 top-2 bg-water-100 hover:bg-water-200 text-water-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-water-200 transition flex items-center gap-1">
+              <i data-lucide="locate" class="w-3 h-3"></i>
+              <span>GPSで取得</span>
+            </button>
+          </div>
+          <p class="text-[10px] text-forest-700 mt-1.5 leading-relaxed">
+            ※全国の<strong>JR、私鉄、地下鉄、路面電車、叡山電鉄（えいでん）全17駅</strong>に対応しています。<br>データベースにない場合は、オンラインの羅針盤APIで自動捜索します。
+          </p>
+        </div>
+
+        <div class="bg-water-50 p-4 rounded-xl border border-water-100 text-xs text-water-900">
+          <span class="font-bold flex items-center gap-1 mb-1 text-water-800">
+            <i data-lucide="droplet" class="w-3.5 h-3.5"></i>
+            「ご近所」のルール
+          </span>
+          あなた自身が登録したこの最寄駅やGPS位置から、**半径 5km** 以内にあるカフェ情報だけがはっきりと見えます。それより遠いカフェは霧（モザイク）に包まれます。
+        </div>
+
+        <button type="submit" id="loginSubmitBtn" class="w-full bg-forest-700 hover:bg-forest-800 text-white py-3.5 rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2">
+          <span id="loginSubmitText">散策を始める（森に入る）</span>
+          <i data-lucide="arrow-right" id="loginSubmitIcon" class="w-5 h-5"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. メインアプリケーション画面 -->
+  <!-- ヘッダー (深緑と滝の爽やかな青) -->
+  <header class="bg-forest-900 text-forest-50 py-4 px-6 shadow-md sticky top-0 z-50 flex justify-between items-center border-b border-forest-800">
+    <div class="flex items-center gap-2">
+      <div class="bg-water-500 p-2 rounded-xl text-white shadow-lg shadow-water-500/20">
+        <i data-lucide="trees" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-wider flex items-center gap-1.5 text-white">
+          Ro-cal <span class="text-xs bg-water-500 px-2 py-0.5 rounded-full text-white">深き森のご近所</span>
+        </h1>
+        <p class="text-[10px] text-forest-200">半径5kmの木漏れ日を歩く、静かなる隠れ家SNS</p>
+      </div>
+    </div>
+    
+    <!-- 設定・現在地ステータス -->
+    <div class="flex items-center gap-3">
+      <!-- ユーザープロフィール簡易表示 -->
+      <div id="userBadge" class="hidden sm:flex items-center gap-2 bg-forest-850 py-1 px-3 rounded-xl border border-forest-700 text-xs">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-water-300"></i>
+        <span id="headerUsername" class="font-bold text-white">散策者</span>
+        <span class="text-forest-400">@</span>
+        <span id="headerStation" class="text-water-200 font-semibold">駅</span>
+      </div>
+
+      <button id="toggleDemoBtn" class="bg-wood-800 hover:bg-wood-700 text-xs text-wood-100 py-1.5 px-3 rounded-lg border border-wood-700 transition flex items-center gap-1">
+        <i data-lucide="locate-fixed" class="w-3.5 h-3.5 text-water-400"></i>
+        <span>テスト用・仮想散策</span>
+      </button>
+      <div id="gpsStatus" class="flex items-center gap-1.5 text-xs text-emerald-400 bg-forest-950/80 py-1 px-2.5 rounded-full border border-forest-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="gpsStatusText">現在地OK</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-12 gap-6">
+    
+    <!-- 左：ユーザーの現在地・ステータス ＆ 新規投稿フォーム -->
+    <div class="md:col-span-5 flex flex-col gap-6">
+      
+      <!-- ステータス & 設定カード -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-forest-100">
+        <div class="flex justify-between items-start mb-3">
+          <h2 class="text-sm font-bold text-forest-900 flex items-center gap-2">
+            <i data-lucide="compass" class="w-4 h-4 text-water-500"></i>
+            現在の散策ポジション（基準位置）
+          </h2>
+          <!-- プロフィール変更 -->
+          <button id="editProfileBtn" class="text-[10px] text-forest-700 hover:text-water-600 font-bold flex items-center gap-0.5">
+            <i data-lucide="edit-3" class="w-3 h-3"></i> 変更
+          </button>
+        </div>
+        
+        <!-- 現在座標・散策者情報表示 -->
+        <div class="space-y-2 mb-4">
+          <div class="bg-wood-100/40 p-3 rounded-xl border border-wood-100 text-xs mb-2">
+            <p class="text-wood-800"><span class="font-bold text-forest-800">散策者：</span> <span id="currentProfileName">---</span></p>
+            <p class="text-wood-800 mt-0.5"><span class="font-bold text-forest-800">散策拠点：</span> <span id="currentProfileStation">---</span></p>
+          </div>
+
+          <div class="flex justify-between items-center text-xs bg-forest-100 p-3 rounded-xl border border-forest-200/60">
+            <div>
+              <p class="text-forest-700 font-semibold flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-forest-700"></span>緯度 / 経度
+              </p>
+              <p id="currentCoords" class="font-mono text-wood-900 text-[11px] mt-0.5">座標を取得中...</p>
+            </div>
+            <button id="refreshGpsBtn" class="bg-white hover:bg-forest-50 p-2 rounded-lg border border-forest-200 shadow-sm transition">
+              <i data-lucide="refresh-cw" class="w-4 h-4 text-forest-700"></i>
+            </button>
+          </div>
+
+          <!-- デモ用位置変更通知 -->
+          <div id="demoLocationPanel" class="bg-water-50 p-3 rounded-xl border border-water-100 hidden">
+            <p class="text-xs text-water-800 font-bold mb-1 flex items-center gap-1">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-water-500"></i>
+              仮想散策中: マップクリックで歩行をシミュレート
+            </p>
+            <p class="text-[10px] text-water-700">地図上の気になる場所をクリックして、そこから半径5km内の隠れ家カフェを探してみましょう！</p>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center text-xs pt-1.5 border-t border-forest-100">
+          <span class="text-forest-700">ご近所の霧が晴れる範囲</span>
+          <span class="font-bold bg-water-100 text-water-800 px-2.5 py-1 rounded-md">半径 5km 以内</span>
+        </div>
+      </div>
+
+      <!-- カフェを投稿する -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-forest-100">
+        <h2 class="text-lg font-bold text-forest-900 mb-4 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-water-500"></i>
+          新しい隠れ家を見つけた
+        </h2>
+        
+        <form id="postForm" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-wood-800 mb-1">店名（本名）</label>
+            <input type="text" id="cafeName" required placeholder="例：珈琲と巨木 樹林亭" 
+              class="w-full text-sm px-3 py-2 bg-forest-50/50 border border-forest-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700">
+            <p class="text-[10px] text-forest-700 mt-1">※5kmより遠い場所の人の画面では、店名が霧で隠れます。</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-wood-800 mb-1">森の目印・ヒント（遠くの人へ伝える気配）</label>
+            <input type="text" id="cafeHint" required placeholder="例：ツタが絡まる巨木と、小さな滝のせせらぎが聞こえる路地の奥" 
+              class="w-full text-sm px-3 py-2 bg-forest-50/50 border border-forest-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700">
+            <p class="text-[10px] text-forest-700 mt-1">※遠い場所にいる人には、このヒントだけが唯一の手がかりとなります。</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-wood-800 mb-1">森の奥での記憶（感想・おすすめ）</label>
+            <textarea id="cafeComment" rows="3" required placeholder="水がとても美味しく、水出し珈琲が絶品。窓から見える小さな滝にしぶきがキラキラ光っていました..." 
+              class="w-full text-sm px-3 py-2 bg-forest-50/50 border border-forest-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700"></textarea>
+          </div>
+
+          <!-- カフェの写真（端末からアップロード＆プリセット選択の統合） -->
+          <div>
+            <label class="block text-xs font-semibold text-wood-800 mb-1">木漏れ日の雰囲気写真</label>
+            <div class="grid grid-cols-4 gap-2 mb-3">
+              <label class="cursor-pointer relative rounded-xl overflow-hidden border-2 border-transparent hover:border-water-500 [&:has(input:checked)]:border-water-500">
+                <input type="radio" name="cafePhoto" value="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400" checked class="sr-only">
+                <img src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=120" alt="Forest 1" class="w-full h-12 object-cover">
+              </label>
+              <label class="cursor-pointer relative rounded-xl overflow-hidden border-2 border-transparent hover:border-water-500 [&:has(input:checked)]:border-water-500">
+                <input type="radio" name="cafePhoto" value="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400" class="sr-only">
+                <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=120" alt="Forest 2" class="w-full h-12 object-cover">
+              </label>
+              <label class="cursor-pointer relative rounded-xl overflow-hidden border-2 border-transparent hover:border-water-500 [&:has(input:checked)]:border-water-500">
+                <input type="radio" name="cafePhoto" value="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400" class="sr-only">
+                <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=120" alt="Forest 3" class="w-full h-12 object-cover">
+              </label>
+              <label class="cursor-pointer relative rounded-xl overflow-hidden border-2 border-transparent hover:border-water-500 [&:has(input:checked)]:border-water-500">
+                <input type="radio" name="cafePhoto" value="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400" class="sr-only">
+                <img src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=120" alt="Forest 4" class="w-full h-12 object-cover">
+              </label>
+            </div>
+
+            <!-- 端末から写真をアップロードするUI -->
+            <div class="relative flex items-center justify-center w-full">
+              <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-forest-200 hover:border-water-500 bg-forest-50/50 hover:bg-forest-100/30 rounded-2xl cursor-pointer transition duration-200">
+                <div class="flex flex-col items-center justify-center pt-2 pb-2 text-center">
+                  <i data-lucide="image-plus" class="w-6 h-6 text-forest-700 mb-1"></i>
+                  <p class="text-xs font-semibold text-forest-800">📸 自分の写真を選択する</p>
+                  <p class="text-[9px] text-forest-600 mt-0.5">スマートフォンやPC内の画像をアップロードできます</p>
+                </div>
+                <input type="file" id="customPhotoInput" accept="image/*" class="hidden">
+              </label>
+            </div>
+
+            <!-- アップロード画像プレビュー -->
+            <div id="customPhotoPreviewContainer" class="hidden mt-3 relative rounded-xl overflow-hidden border border-forest-200 h-32 bg-forest-100">
+              <img id="customPhotoPreview" src="" alt="Uploaded cafe photo preview" class="w-full h-full object-cover">
+              <button type="button" id="removeCustomPhotoBtn" class="absolute top-2 right-2 bg-black/75 hover:bg-black text-white p-1.5 rounded-full transition shadow-md">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+              <div class="absolute bottom-2 left-2 bg-water-600/90 text-white text-[9px] px-2 py-0.5 rounded-md font-bold">
+                アップロード写真が選ばれています
+              </div>
+            </div>
+          </div>
+
+          <!-- 位置情報の紐付け（爽やかな水色バック） -->
+          <div class="bg-water-50 p-3 rounded-xl border border-water-100 text-xs">
+            <span class="font-bold text-water-800 flex items-center gap-1 mb-1">
+              <i data-lucide="droplets" class="w-3.5 h-3.5"></i>
+              結びつける森の座標
+            </span>
+            <p id="postLocationInfo" class="text-forest-700 font-mono">現在地に紐づけて投稿します。</p>
+          </div>
+
+          <button type="submit" class="w-full bg-forest-700 hover:bg-forest-800 text-[#fdf8f6] py-3 rounded-xl font-bold transition shadow-md hover:shadow-lg flex items-center justify-center gap-2">
+            <i data-lucide="trees" class="w-5 h-5"></i>
+            <span>隠れ家を森に刻む</span>
+          </button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- 右：秘密のカフェタイムライン ＆ 地図 -->
+    <div class="md:col-span-7 flex flex-col gap-6">
+      
+      <!-- 地図エリア -->
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-forest-100 flex flex-col">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-sm font-bold text-forest-900 flex items-center gap-2">
+            <i data-lucide="map" class="w-4 h-4 text-forest-700"></i>
+            原生林の木漏れ日マップ
+          </h2>
+          <span class="text-[11px] text-wood-700">🔵: あなた / 🌲: ご近所カフェ / 🔒: 森の霧の向こう</span>
+        </div>
+        
+        <!-- マップコンテナ -->
+        <div id="map" class="w-full h-72 rounded-xl border border-forest-100 z-10 shadow-inner"></div>
+      </div>
+
+      <!-- タイムライン -->
+      <div class="flex-1 flex flex-col">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-bold text-forest-900 flex items-center gap-2">
+            <i data-lucide="scroll" class="w-5 h-5 text-forest-700"></i>
+            森のご近所タイムライン
+          </h2>
+          <div class="flex items-center gap-1.5 text-xs text-water-800 bg-water-100 py-1 px-3 rounded-full">
+            滝の音の届く範囲に <span id="activeCount" class="font-bold">0</span>件の隠れ家
+          </div>
+        </div>
+
+        <!-- 投稿一覧 -->
+        <div id="postTimeline" class="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+          <!-- JSで動的に追加されます -->
+          <div class="bg-white p-8 rounded-2xl border border-forest-100 text-center text-forest-700">
+            <i data-lucide="loader" class="w-8 h-8 text-forest-700 animate-spin mx-auto mb-2"></i>
+            <p class="text-sm">深い森の気配を読み込んでいます...</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- フッター -->
+  <footer class="bg-forest-900 text-forest-200 py-8 px-4 text-center text-xs mt-12 border-t border-forest-800">
+    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p class="flex items-center gap-1">
+        <i data-lucide="trees" class="w-4 h-4 text-water-400"></i>
+        © 2026 Ro-cal - 森の静寂を愛する人々へ。
+      </p>
+      <div class="flex gap-4">
+        <a href="#" class="hover:text-white transition">森のルール</a>
+        <a href="#" class="hover:text-white transition">プライバシーの保護について</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Firebase & アプリスクリプト -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getFirestore, collection, addDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+
+    // Blob環境でのTDZ（Temporal Dead Zone）による変数未定義エラーを確実に回避するため、 var 宣言を用いて巻き上げ空間を担保します。
+    var firebaseApp = null;
+    var db = null;
+    var auth = null;
+    var currentUserId = 'anonymous-user';
+    var unsubscribeCafes = null; // Firestoreの監視を制御する購読解除関数
+    
+    var appId = typeof __app_id !== 'undefined' ? __app_id : 'ro-cal-cafe-app';
+    var hasFirebase = typeof __firebase_config !== 'undefined';
+
+    // ユーザー設定プロフィール
+    var activeUsername = "散策者";
+    var activeStation = "京都駅";
+
+    // ユーザー現在地とテスト（デモ）用変数
+    var myLatitude = 35.0116; // デフォルト
+    var myLongitude = 135.7681;
+    var gpsLatitude = null;   // GPSで実際に取得された一時緯度
+    var gpsLongitude = null;  // GPSで実際に取得された一時経度
+    var isDemoMode = false;
+    var postsData = []; // 投稿データキャッシュ
+    var customUploadedPhotoBase64 = null; // アップロードされたBase64画像データ
+
+    // Leafletマップのインスタンス保持
+    var map = null;
+    var userMarker = null;
+    var cafeMarkersGroup = null;
+
+    // --- JR・私鉄・地下鉄・叡山電鉄の代表駅データベース ---
+    // えいでん各駅（17駅）を完璧に、かつ多様な入力（揺らぎキー）にマッチするエイリアス付きで登録
+    var STATION_DATABASE = {
+      // 叡山電鉄（えいでん沿線データベース：全17駅・超精密座標）
+      "出町柳駅": { lat: 35.0301, lng: 135.7728, keys: ["出町柳", "出町柳駅", "でまちやなぎ", "えいでん出町柳"] },
+      "元田中駅": { lat: 35.0357, lng: 135.7788, keys: ["元田中", "元田中駅", "もとたなか"] },
+      "茶山・京都芸術大学駅": { lat: 35.0398, lng: 135.7836, keys: ["茶山", "茶山駅", "京都芸術大学", "ちゃやま"] },
+      "一乗寺駅": { lat: 35.0445, lng: 135.7862, keys: ["一乗寺", "一乗寺駅", "いちじょうじ"] },
+      "修学院駅": { lat: 35.0504, lng: 135.7954, keys: ["修学院", "修学院駅", "しゅがくいん"] },
+      "宝ケ池駅": { lat: 35.0588, lng: 135.7864, keys: ["宝ヶ池", "宝ケ池", "宝ヶ池駅", "宝ケ池駅", "たからがいけ"] },
+      "三宅八幡駅": { lat: 35.0645, lng: 135.7957, keys: ["三宅八幡", "三宅八幡駅", "みやけはちまん"] },
+      "八瀬比叡山口駅": { lat: 35.0614, lng: 135.8078, keys: ["八瀬", "八瀬比叡山口", "八瀬比叡山口駅", "やせひえいざんぐち"] },
+      "八幡前駅": { lat: 35.0648, lng: 135.7820, keys: ["八幡前", "八幡前駅", "はちまんまえ"] },
+      "岩倉駅": { lat: 35.0673, lng: 135.7797, keys: ["岩倉", "岩倉駅", "いわくら"] },
+      "木野駅": { lat: 35.0718, lng: 135.7739, keys: ["木野", "木野駅", "きの"] },
+      "京都精華大前駅": { lat: 35.0768, lng: 135.7727, keys: ["京都精華大前", "京都精華大前駅", "京都精華大", "京都精華大学前駅", "京都精華大学前", "せいかだい", "せいかだいまえ", "精華大", "精華大前"] },
+      "二軒茶屋駅": { lat: 35.0811, lng: 135.7681, keys: ["二軒茶屋", "二軒茶屋駅", "にけんちゃや"] },
+      "市原駅": { lat: 35.0931, lng: 135.7645, keys: ["市原", "市原駅", "いちはら"] },
+      "二ノ瀬駅": { lat: 35.1012, lng: 135.7598, keys: ["二ノ瀬", "二ノ瀬駅", "にのせ"] },
+      "貴船口駅": { lat: 35.1051, lng: 135.7645, keys: ["貴船口", "貴船口駅", "きぶねぐち"] },
+      "鞍馬駅": { lat: 35.1115, lng: 135.7725, keys: ["鞍馬", "鞍馬駅", "くらま"] },
+
+      // 関東 (JR)
+      "東京駅": { lat: 35.6812, lng: 139.7671, keys: ["東京", "とうきょう"] },
+      "新宿駅": { lat: 35.6896, lng: 139.7006, keys: ["新宿", "しんじゅく"] },
+      "渋谷駅": { lat: 35.6580, lng: 139.7016, keys: ["渋谷", "しぶや"] },
+      "池袋駅": { lat: 35.7289, lng: 139.7104, keys: ["池袋", "いけばくろ"] },
+      "横浜駅": { lat: 35.4658, lng: 139.6223, keys: ["横浜", "よこはま"] },
+      "大宮駅": { lat: 35.9063, lng: 139.6240, keys: ["大宮", "おおみや"] },
+      "千葉駅": { lat: 35.6136, lng: 140.1131, keys: ["千葉", "ちば"] },
+      // 関東 (私鉄・地下鉄)
+      "下北沢駅": { lat: 35.6616, lng: 139.6666, keys: ["下北沢", "しもきたざわ", "下北"] },
+      "自由が丘駅": { lat: 35.6074, lng: 139.6687, keys: ["自由が丘", "じゆうがおか", "自由ヶ丘"] },
+      "吉祥寺駅": { lat: 35.7031, lng: 139.5798, keys: ["吉祥寺", "きちじょうじ"] },
+      "代々木上原駅": { lat: 35.6691, lng: 139.6797, keys: ["代々木上原", "よよぎうえはら"] },
+      "大手町駅": { lat: 35.6848, lng: 139.7644, keys: ["大手町", "おおてまち"] },
+      "銀座駅": { lat: 35.6719, lng: 139.7640, keys: ["銀座", "ぎんざ"] },
+      "六本木駅": { lat: 35.6628, lng: 139.7315, keys: ["六本木", "ろっぽんぎ"] },
+      "表参道駅": { lat: 35.6652, lng: 139.7125, keys: ["表参道", "おもてさんどう"] },
+      
+      // 関西 (JR)
+      "京都駅": { lat: 35.0116, lng: 135.7681, keys: ["京都", "きょうと"] },
+      "大阪駅": { lat: 34.7024, lng: 135.4959, keys: ["大阪", "おおさか"] },
+      "三ノ宮駅": { lat: 34.6943, lng: 135.1951, keys: ["三ノ宮", "三宮", "さんのみや"] },
+      "奈良駅": { lat: 34.6811, lng: 135.8197, keys: ["奈良", "なら"] },
+      // 関西 (私鉄・地下鉄)
+      "大阪梅田駅": { lat: 34.7027, lng: 135.4979, keys: ["梅田", "大阪梅田", "うめだ"] },
+      "難波駅": { lat: 34.6662, lng: 135.5022, keys: ["難波", "なんば", "ミナミ"] },
+      "心斎橋駅": { lat: 34.6711, lng: 135.5014, keys: ["心斎橋", "しんさいばし"] },
+      "烏丸駅": { lat: 35.0037, lng: 135.7592, keys: ["烏丸", "からすま"] },
+      "京都河原町駅": { lat: 35.0039, lng: 135.7688, keys: ["河原町", "四条河原町", "かわらまち"] },
+      "四条駅": { lat: 35.0038, lng: 135.7596, keys: ["四条", "しじょう"] },
+      "烏丸御池駅": { lat: 35.0104, lng: 135.7594, keys: ["烏丸御池", "からすまおいけ"] },
+
+      // その他主要都市
+      "名古屋駅": { lat: 35.1709, lng: 136.8815, keys: ["名古屋", "めいえき"] },
+      "博多駅": { lat: 33.5897, lng: 130.4207, keys: ["博多", "はかた"] },
+      "天神駅": { lat: 33.5915, lng: 130.4005, keys: ["天神", "てんじん"] },
+      "札幌駅": { lat: 43.0686, lng: 141.3508, keys: ["札幌", "さっぽろ"] },
+      "仙台駅": { lat: 38.2603, lng: 140.8824, keys: ["仙台", "せんだい"] },
+      "広島駅": { lat: 34.3976, lng: 132.4754, keys: ["広島", "ひろしま"] },
+      "金沢駅": { lat: 36.5781, lng: 136.6482, keys: ["金沢", "かなざわ"] }
+    };
+
+    // --- 森林・巨木・滝の隠れ家をイメージしたデフォルトの投稿テンプレート ---
+    // 他の散策者の投稿として「魅力的なカフェの建物外観」や「販売しているフード」の画像URLを採用
+    var MOCK_POSTS_TEMPLATES = [
+      {
+        name: '滝の見える大樹の茶房',
+        hint: '川のせせらぎが大きくなる頃、古い巨木の幹にしつらえられた小さなテラス',
+        comment: '本当に木の上でお茶を飲んでいるような体験ができます。足元では滝しぶきがキラキラと光っており、マイナスイオンがすごいです。濃厚な窯焼きチーズタルトとすっきりした水出し珈琲の相性が抜群。',
+        photo: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500', // カフェの温かみのある建物外観
+        authorName: 'モコさん',
+        offsetLat: 0.0114,   // 約1.5km先（5km以内・アンロック）
+        offsetLng: 0.0089
+      },
+      {
+        name: '苔と巨樹 of カフェ 碧い時間',
+        hint: '原生林のトンネルを抜けた先、一番大きなクスノキ of 根元にある白い小屋',
+        comment: '巨木に守られるようにひっそりと佇む白い山小屋風のカフェ。店内は木漏れ日だけで照らされており、まるで絵本の世界。名物の手作りスコーンセットは自家製ハーブバターを添えて。',
+        photo: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=500', // 森の中のウッディなカフェ建物外観
+        authorName: 'エルフの末裔',
+        offsetLat: -0.0186,  // 約2.6km先（5km以内・アンロック）
+        offsetLng: -0.0151
+      },
+      {
+        name: '木漏れ日の図書館 樹音（じゅおん）',
+        hint: '高い杉の木に囲まれた、蔦の絡まるレンガ造りの洋館',
+        comment: '高い天井まで古本で埋め尽くされたレンガ造りの洋館。ここのおすすめは、木漏れ日を反射する、見た目も美しい特製モンブランケーキ。コーヒーの深い苦味によく合います。',
+        photo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500', // 美味しそうなケーキとカフェラテ
+        authorName: '本好きのハチ',
+        offsetLat: 0.0245,   // 約3.5km先（5km以内・アンロック）
+        offsetLng: -0.0110
+      },
+      {
+        name: 'せせらぎテラス 翠の泉',
+        hint: '滝つぼへ下る階段 of 途中、マイナスイオンに満ちた白いガゼボ',
+        comment: '川沿いのテラス席で聴くせせらぎが極上。清流の伏流水を使って点てられた有機抹茶ラテは、フワフワできめ細やかな泡立ちが絶品です。',
+        photo: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500', // 木漏れ日を浴びる極上の淹れたてラテアート
+        authorName: '滝音リフレッシュ',
+        offsetLat: -0.0085,  // 約1.2km先（5km以内・アンロック）
+        offsetLng: 0.0295
+      },
+      {
+        name: '滝つぼ喫茶 霧雨（きりさめ）',
+        hint: '険しい山道の途中、急な階段を下りた滝のすぐ隣にある隠れ家中の隠れ家',
+        comment: '滝しぶきが舞い散るテラス席。名水の珈琲と、地元産の苺を贅沢に使った焼き立てのワッフルが運ばれてくると、滝の音さえ忘れるほど優雅な時間が訪れます。',
+        photo: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500', // 居心地のいい木製カウンターと特製コーヒー
+        authorName: 'タキタロウ',
+        offsetLat: 0.0620,   // 約7.8km先（5km外・霧の中ロック）
+        offsetLng: 0.0450
+      },
+      {
+        name: '樹冠（じゅかん）ベーカリーカフェ',
+        hint: '丘を一番上まで登りきった、木々が丸く空を囲む小さな温室風カフェ',
+        comment: '森で採れた野生のクルミやイチジクを使用した天然酵母の焼き立てハードブレッド。テラス席からは遥か向こうの樹々が見え、まるで雲の上のパン屋さんのよう。',
+        photo: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=500', // 焼きたてパンが美しく並ぶアンティークなカフェ
+        authorName: 'こりすのパン屋',
+        offsetLat: -0.0520,  // 約6.3km先（5km外・霧の中ロック）
+        offsetLng: 0.0490
+      },
+      {
+        name: '翡翠の滴（しずく）珈琲店',
+        hint: '巨木の下をくぐる小道の奥、苔むした古い石窯のある庭園',
+        comment: '一滴一滴じっくりと丸一日かけて抽出された雫コールドブリュー。翡翠色のアンティークグラスに注がれて運ばれるその一杯は、驚くほどスッキリ澄み切っています。',
+        photo: 'https://images.unsplash.com/photo-1511920170033-f8396924c348?w=500', // ガラス越しの光が美しい冷たいドリップドリンク
+        authorName: '森 of しずく',
+        offsetLat: 0.0510,   // 約6.5km先（5km外・霧の中ロック）
+        offsetLng: -0.0510
+      }
+    ];
+
+    // 初期化処理
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      initUI();
+
+      // ローカルストレージから前回のプロフィール情報を読み出す
+      loadProfileFromStorage();
+      
+      // Leaflet地図の初期化
+      initMap();
+
+      // Firebaseまたはローカルデータの購読開始
+      await setupDatabase();
+    });
+
+    // プロフィールの読み出し
+    function loadProfileFromStorage() {
+      const storedName = localStorage.getItem('rocal_username');
+      const storedStation = localStorage.getItem('rocal_station');
+      const storedLat = localStorage.getItem('rocal_lat');
+      const storedLng = localStorage.getItem('rocal_lng');
+
+      if (storedName && storedStation) {
+        activeUsername = storedName;
+        activeStation = storedStation;
+        if (storedLat && storedLng) {
+          myLatitude = parseFloat(storedLat);
+          myLongitude = parseFloat(storedLng);
+        }
+        // 登記所画面を隠す
+        document.getElementById('loginScreen').classList.add('hidden');
+        updateProfileUI();
+      } else {
+        // プロフィールがない場合は「登記所」を表示したままにする
+        document.getElementById('loginScreen').classList.remove('hidden');
+      }
+    }
+
+    // プロフィールUIを更新
+    function updateProfileUI() {
+      document.getElementById('headerUsername').innerText = activeUsername;
+      document.getElementById('headerStation').innerText = activeStation;
+      document.getElementById('userBadge').classList.remove('hidden');
+
+      document.getElementById('currentProfileName').innerText = activeUsername + " さん";
+      document.getElementById('currentProfileStation').innerText = activeStation + " (起点座標にセット済)";
+      updateLocationUI();
+    }
+
+    // Firebaseのセットアップ（バグ修正：複数回 initializeApp を呼ばないよう1回限りで設計）
+    async function setupDatabase() {
+      if (hasFirebase) {
+        try {
+          if (!firebaseApp) {
+            const firebaseConfig = JSON.parse(__firebase_config);
+            firebaseApp = initializeApp(firebaseConfig);
+            auth = getAuth(firebaseApp);
+            db = getFirestore(firebaseApp);
+          }
+
+          // Rule 3: `onAuthStateChanged` でユーザーの認証完了を確実に検知した後にFirestore処理を開始する。
+          onAuthStateChanged(auth, (user) => {
+            if (user) {
+              currentUserId = user.uid;
+              console.log("Authenticated successfully as user:", user.uid);
+
+              if (unsubscribeCafes) {
+                unsubscribeCafes();
+              }
+
+              const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'cafes');
+              
+              unsubscribeCafes = onSnapshot(collectionRef, (snapshot) => {
+                postsData = [];
+                snapshot.forEach((doc) => {
+                  const data = doc.data();
+                  postsData.push({
+                    id: doc.id,
+                    ...data
+                  });
+                });
+                
+                mergeMockAndFirestoreData();
+              }, (err) => {
+                console.error("Firestore loading error, falling back to mock:", err);
+                loadMockData();
+              });
+
+            } else {
+              console.warn("User state is currently null. Falling back to local data until login.");
+              loadMockData();
+            }
+          });
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+
+        } catch (e) {
+          console.error("Firebase connection / initialization failed. Falling back to mock.", e);
+          loadMockData();
+        }
+      } else {
+        loadMockData();
+      }
+    }
+
+    // モックデータ/LocalStorageのロード
+    function loadMockData() {
+      const localData = localStorage.getItem('rocal_mock_posts');
+      let customLocalPosts = [];
+      if (localData) {
+        try {
+          customLocalPosts = JSON.parse(localData);
+        } catch (e) {
+          customLocalPosts = [];
+        }
+      }
+      
+      const generatedMocks = generateMockLocationsAtCurrentStation();
+      postsData = [...customLocalPosts, ...generatedMocks];
+      postsData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      renderTimeline();
+      updateMapMarkers();
+    }
+
+    // Firestoreのデータと、現在の散策駅の周辺「空想カフェ」データを融合させる
+    function mergeMockAndFirestoreData() {
+      const generatedMocks = generateMockLocationsAtCurrentStation();
+      const firestoreIds = new Set(postsData.map(p => p.id));
+      const filteredMocks = generatedMocks.filter(mock => !firestoreIds.has(mock.id));
+      
+      postsData = [...postsData, ...filteredMocks];
+      postsData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      
+      renderTimeline();
+      updateMapMarkers();
+    }
+
+    // ユーザーの最寄駅周辺に空想カフェを動的に配置する
+    function generateMockLocationsAtCurrentStation() {
+      return MOCK_POSTS_TEMPLATES.map((template, index) => {
+        return {
+          id: 'dynamic-mock-' + index,
+          name: template.name,
+          hint: template.hint,
+          comment: template.comment,
+          photo: template.photo,
+          latitude: myLatitude + template.offsetLat,
+          longitude: myLongitude + template.offsetLng,
+          createdAt: Date.now() - (3600000 * (index + 1) * 3),
+          authorName: template.authorName
+        };
+      });
+    }
+
+    // 距離計算 (メートル)
+    function getDistanceInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const phi1 = lat1 * Math.PI / 180;
+      const phi2 = lat2 * Math.PI / 180;
+      const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+      const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+      const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    }
+
+    // GPS取得
+    async function getUserLocation() {
+      return new Promise((resolve) => {
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              if (!isDemoMode) {
+                myLatitude = position.coords.latitude;
+                myLongitude = position.coords.longitude;
+                updateLocationUI();
+              }
+              document.getElementById('gpsStatus').className = "flex items-center gap-1.5 text-xs text-emerald-400 bg-forest-950/80 py-1 px-2.5 rounded-full border border-forest-700";
+              document.getElementById('gpsStatusText').innerText = "森の羅針盤OK";
+              resolve(position.coords);
+            },
+            (error) => {
+              console.warn("Geolocation error:", error);
+              resolve(null);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        } else {
+          resolve(null);
+        }
+      });
+    }
+
+    // 位置情報UI更新
+    function updateLocationUI() {
+      document.getElementById('currentCoords').innerText = `${myLatitude.toFixed(5)}, ${myLongitude.toFixed(5)}`;
+      document.getElementById('postLocationInfo').innerText = `あなたの現在位置 (${myLatitude.toFixed(4)}, ${myLongitude.toFixed(4)}) を起点として記録します。`;
+      if (userMarker) {
+        userMarker.setLatLng([myLatitude, myLongitude]);
+        if (map && !isDemoMode) {
+          map.setView([myLatitude, myLongitude], 12);
+        }
+      }
+    }
+
+    // オンライン位置探索API（私鉄・地下鉄の自由な引き当て用フォールバック）
+    async function searchStationOnline(queryText) {
+      let searchQuery = queryText;
+      
+      // えいでん、叡電、叡山電鉄などのキーワードゆらぎをOsmで検知しやすいよう「京都」を補正
+      if (searchQuery.includes("えいでん") || searchQuery.includes("叡電") || searchQuery.includes("叡山")) {
+        searchQuery = searchQuery.replace(/(えいでん|叡電|叡山電鉄)/, "") + "駅 京都";
+      }
+
+      if (!searchQuery.endsWith("駅") && !searchQuery.includes("駅")) {
+        searchQuery += "駅";
+      }
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=jp&limit=1`, {
+          headers: {
+            'Accept-Language': 'ja'
+          }
+        });
+        const data = await response.json();
+        if (data && data.length > 0) {
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+            name: data[0].display_name.split(',')[0].trim() || queryText
+          };
+        }
+      } catch (e) {
+        console.error("Nominatim API error:", e);
+      }
+      return null;
+    }
+
+    // 画像ファイルを読み込んで Canvas でリサイズ & 圧縮して Base64化する関数
+    function processAndResizeImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDimension = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxDimension) {
+                height = Math.round((height * maxDimension) / width);
+                width = maxDimension;
+              }
+            } else {
+              if (height > maxDimension) {
+                width = Math.round((width * maxDimension) / height);
+                height = maxDimension;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            resolve(compressedBase64);
+          };
+          img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+      });
+    }
+
+    // UI初期設定
+    function initUI() {
+      // 登記フォーム（ログイン）送信処理
+      const loginForm = document.getElementById('loginForm');
+      const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+      const loginSubmitText = document.getElementById('loginSubmitText');
+      const loginSubmitIcon = document.getElementById('loginSubmitIcon');
+
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById('usernameInput').value.trim();
+        const stationQuery = document.getElementById('stationInput').value.trim();
+
+        if (!username || !stationQuery) {
+          alert("名前と最寄駅を入力してください。");
+          return;
+        }
+
+        loginSubmitBtn.disabled = true;
+        loginSubmitText.innerText = "羅針盤を調整中...";
+        loginSubmitIcon.setAttribute("data-lucide", "loader");
+        lucide.createIcons();
+
+        let matchedCoords = null;
+        let finalStationName = stationQuery;
+
+        // ★バグ修正：もし「GPSで取得」した位置情報をそのまま利用してログインしようとしている場合
+        if (stationQuery === "現在地 (GPS)" && gpsLatitude !== null && gpsLongitude !== null) {
+          matchedCoords = { lat: gpsLatitude, lng: gpsLongitude };
+          finalStationName = "現在地 (GPS)";
+        } else {
+          // 入力クエリのトリミングと比較用標準化（ひらがな、全角半角、カタカナ、漢字を強力にカバー）
+          let cleanQuery = stationQuery.replace(/駅$/, "").replace(/\s+/g, "");
+
+          // 1. ローカルのSTATION_DATABASEを徹底比較（叡山電鉄などを含む）
+          for (const key in STATION_DATABASE) {
+            const cleanKey = key.replace(/駅$/, "").replace(/\s+/g, "");
+            const stationData = STATION_DATABASE[key];
+            
+            // keys配列または駅名キー本体をすべてフラットにテスト
+            const keysToTest = [cleanKey, ...(stationData.keys || [])];
+            
+            const matched = keysToTest.some(k => 
+              cleanQuery === k || k.includes(cleanQuery) || cleanQuery.includes(k)
+            );
+
+            if (matched) {
+              matchedCoords = stationData;
+              finalStationName = key;
+              break;
+            }
+          }
+
+          // 2. ローカルにない場合は Nominatim API によるオンライン解決
+          if (!matchedCoords) {
+            const onlineResult = await searchStationOnline(stationQuery);
+            if (onlineResult) {
+              matchedCoords = { lat: onlineResult.lat, lng: onlineResult.lng };
+              finalStationName = onlineResult.name;
+            }
+          }
+        }
+
+        // 3. バグ修正：駅名もGPS座標も見つからなかった場合、勝手に「京都駅」に戻すのを廃止し、エラーを表示して差し戻す
+        if (!matchedCoords) {
+          loginSubmitBtn.disabled = false;
+          loginSubmitText.innerText = "散策を始める（森に入る）";
+          loginSubmitIcon.setAttribute("data-lucide", "arrow-right");
+          lucide.createIcons();
+
+          showMessageModal(
+            "駅が見つかりませんでした", 
+            `「${stationQuery}」の正確な位置を特定できませんでした。別の駅名（例：京都精華大前駅、一乗寺駅、下北沢駅など）を入力するか、「GPSで取得」をお試しください。`
+          );
+          return;
+        }
+
+        activeUsername = username;
+        activeStation = finalStationName;
+        myLatitude = matchedCoords.lat;
+        myLongitude = matchedCoords.lng;
+
+        localStorage.setItem('rocal_username', activeUsername);
+        localStorage.setItem('rocal_station', activeStation);
+        localStorage.setItem('rocal_lat', myLatitude);
+        localStorage.setItem('rocal_lng', myLongitude);
+
+        loginSubmitBtn.disabled = false;
+        loginSubmitText.innerText = "散策を始める（森に入る）";
+        loginSubmitIcon.setAttribute("data-lucide", "arrow-right");
+        lucide.createIcons();
+
+        document.getElementById('loginScreen').classList.add('hidden');
+        updateProfileUI();
+
+        // ★バグ修正：Firebaseの再呼び出し（二重初期化でのクラッシュ）を完全に防ぎ、安全にマッピングの再計算だけを実行する。
+        loadMockData();
+
+        if (map) {
+          map.setView([myLatitude, myLongitude], 12);
+        }
+      });
+
+      // プロフィール変更ボタン
+      document.getElementById('editProfileBtn').addEventListener('click', () => {
+        document.getElementById('usernameInput').value = activeUsername;
+        document.getElementById('stationInput').value = activeStation;
+        document.getElementById('loginScreen').classList.remove('hidden');
+      });
+
+      // ログイン内GPS取得
+      document.getElementById('detectGpsBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('detectGpsBtn');
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-3 h-3 animate-spin"></i><span>探索中...</span>`;
+        lucide.createIcons();
+
+        const coords = await getUserLocation();
+        if (coords) {
+          document.getElementById('stationInput').value = "現在地 (GPS)";
+          gpsLatitude = coords.latitude;
+          gpsLongitude = coords.longitude;
+          btn.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-500"></i><span>取得完了</span>`;
+        } else {
+          btn.innerHTML = `<i data-lucide="alert-circle" class="w-3 h-3 text-amber-500"></i><span>取得失敗</span>`;
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="locate" class="w-3 h-3"></i><span>GPSで取得</span>`;
+            lucide.createIcons();
+          }, 3000);
+        }
+        lucide.createIcons();
+      });
+
+      // デモ仮想散策トグル
+      const toggleDemoBtn = document.getElementById('toggleDemoBtn');
+      const demoLocationPanel = document.getElementById('demoLocationPanel');
+      toggleDemoBtn.addEventListener('click', () => {
+        isDemoMode = !isDemoMode;
+        if (isDemoMode) {
+          toggleDemoBtn.classList.add('bg-water-600', 'text-white');
+          demoLocationPanel.classList.remove('hidden');
+          showMessageModal("仮想散策開始", "マップ上の気になる場所をクリックして、散策者としての歩みをシミュレートできます。その場所から半径5km内の隠れ家カフェの霧が晴れる様子を自由に探検してください！");
+        } else {
+          toggleDemoBtn.classList.remove('bg-water-600', 'text-white');
+          demoLocationPanel.classList.add('hidden');
+          getUserLocation();
+        }
+      });
+
+      document.getElementById('refreshGpsBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('refreshGpsBtn');
+        btn.classList.add('animate-spin');
+        await getUserLocation();
+        setTimeout(() => {
+          btn.classList.remove('animate-spin');
+        }, 800);
+        renderTimeline();
+        updateMapMarkers();
+      });
+
+      // --- 画像アップロード & プレビューのイベント定義 ---
+      const customPhotoInput = document.getElementById('customPhotoInput');
+      const customPhotoPreviewContainer = document.getElementById('customPhotoPreviewContainer');
+      const customPhotoPreview = document.getElementById('customPhotoPreview');
+      const removeCustomPhotoBtn = document.getElementById('removeCustomPhotoBtn');
+
+      customPhotoInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        customPhotoPreviewContainer.classList.remove('hidden');
+        customPhotoPreview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%231b4332' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='lucide lucide-loader animate-spin'><line x1='12' x2='12' y1='2' y2='6'/><line x1='12' x2='12' y1='18' y2='22'/><line x1='4.93' x2='7.76' y1='4.93' y2='7.76'/><line x1='16.24' x2='19.07' y1='16.24' y2='19.07'/><line x1='2' x2='6' y1='12' y2='12'/><line x1='18' x2='22' y1='12' y2='12'/><line x1='4.93' x2='7.76' y1='19.07' y2='16.24'/><line x1='16.24' x2='19.07' y1='7.76' y2='4.93'/></svg>";
+
+        try {
+          const compressedBase64 = await processAndResizeImage(file);
+          customUploadedPhotoBase64 = compressedBase64;
+          customPhotoPreview.src = compressedBase64;
+          
+          document.querySelectorAll('input[name="cafePhoto"]').forEach(radio => {
+            radio.checked = false;
+          });
+        } catch (err) {
+          console.error("Image processing error:", err);
+          showMessageModal("写真の読み込み失敗", "画像の圧縮および処理に失敗しました。他の写真でお試しください。");
+          customPhotoPreviewContainer.classList.add('hidden');
+          customUploadedPhotoBase64 = null;
+        }
+      });
+
+      // アップロードした写真の削除
+      removeCustomPhotoBtn.addEventListener('click', () => {
+        customPhotoInput.value = "";
+        customUploadedPhotoBase64 = null;
+        customPhotoPreviewContainer.classList.add('hidden');
+        customPhotoPreview.src = "";
+        
+        const firstRadio = document.querySelector('input[name="cafePhoto"]');
+        if (firstRadio) firstRadio.checked = true;
+      });
+
+      // プリセットのラジオボタンが選ばれたら、カスタムアップロードの選択を解除する
+      document.querySelectorAll('input[name="cafePhoto"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          if (radio.checked) {
+            customPhotoInput.value = "";
+            customUploadedPhotoBase64 = null;
+            customPhotoPreviewContainer.classList.add('hidden');
+            customPhotoPreview.src = "";
+          }
+        });
+      });
+
+      // 投稿フォーム送信処理
+      const postForm = document.getElementById('postForm');
+      postForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('cafeName').value.trim();
+        const hint = document.getElementById('cafeHint').value.trim();
+        const comment = document.getElementById('cafeComment').value.trim();
+        
+        let photo = customUploadedPhotoBase64;
+        if (!photo) {
+          const selectedRadio = document.querySelector('input[name="cafePhoto"]:checked');
+          photo = selectedRadio ? selectedRadio.value : 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400';
+        }
+
+        if (!name || !hint || !comment) {
+          showMessageModal("不完全な記憶", "すべての項目を森に記してください。");
+          return;
+        }
+
+        const newPost = {
+          name,
+          hint,
+          comment,
+          photo,
+          latitude: myLatitude,
+          longitude: myLongitude,
+          createdAt: Date.now(),
+          authorName: activeUsername,
+          authorId: currentUserId
+        };
+
+        if (hasFirebase && db) {
+          try {
+            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'cafes');
+            await addDoc(collectionRef, newPost);
+            showMessageModal("記録完了", "新しい隠れ家カフェを記録しました！周辺5kmのご近所散策者だけに開示されます。");
+          } catch (err) {
+            console.error("Firestore post failed:", err);
+            saveToLocalList(newPost);
+          }
+        } else {
+          saveToLocalList(newPost);
+        }
+
+        // フォームリセット
+        postForm.reset();
+        customUploadedPhotoBase64 = null;
+        customPhotoPreviewContainer.classList.add('hidden');
+        customPhotoPreview.src = "";
+        
+        const firstRadio = document.querySelector('input[name="cafePhoto"]');
+        if (firstRadio) firstRadio.checked = true;
+
+        lucide.createIcons();
+      });
+    }
+
+    // 新たにユーザー本人が保存した投稿をLocalStorageに記録して画面にマージする
+    function saveToLocalList(post) {
+      post.id = 'local-' + Date.now();
+      
+      const localData = localStorage.getItem('rocal_mock_posts');
+      let customLocalPosts = [];
+      if (localData) {
+        try {
+          customLocalPosts = JSON.parse(localData);
+        } catch (e) {
+          customLocalPosts = [];
+        }
+      }
+      
+      customLocalPosts.unshift(post);
+      localStorage.setItem('rocal_mock_posts', JSON.stringify(customLocalPosts));
+      
+      loadMockData();
+      showMessageModal("記録完了", "新しい隠れ家カフェをメモしました！周辺5kmのご近所の方のみアンロックされます。");
+    }
+
+    // 地図初期化
+    function initMap() {
+      // 5kmが見えやすいように少し広域ズーム(12)に設定
+      map = L.map('map', {
+        zoomControl: true,
+        scrollWheelZoom: false
+      }).setView([myLatitude, myLongitude], 12);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      const userIcon = L.divIcon({
+        className: 'user-location-icon',
+        html: `<div class="relative w-8 h-8 flex items-center justify-center">
+                 <span class="absolute inline-flex h-full w-full rounded-full bg-water-400 opacity-60 animate-ping"></span>
+                 <div class="relative rounded-full w-4 h-4 bg-water-500 border-2 border-white shadow-lg"></div>
+               </div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      userMarker = L.marker([myLatitude, myLongitude], { icon: userIcon }).addTo(map);
+      cafeMarkersGroup = L.layerGroup().addTo(map);
+
+      map.on('click', (e) => {
+        if (isDemoMode) {
+          myLatitude = e.latlng.lat;
+          myLongitude = e.latlng.lng;
+          updateLocationUI();
+          renderTimeline();
+          updateMapMarkers();
+        }
+      });
+    }
+
+    // 地図上のカフェピンを更新
+    function updateMapMarkers() {
+      if (!map || !cafeMarkersGroup) return;
+      cafeMarkersGroup.clearLayers();
+
+      postsData.forEach(cafe => {
+        const distance = getDistanceInMeters(myLatitude, myLongitude, cafe.latitude, cafe.longitude);
+        const isUnlocked = distance <= 5000; // 5km以内
+
+        let iconHtml = '';
+        if (isUnlocked) {
+          iconHtml = `<div class="bg-forest-700 hover:scale-115 transition-transform text-white p-1.5 rounded-full border-2 border-water-100 shadow-md flex items-center justify-center w-8 h-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e0f2fe" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trees"><path d="M20 10c0-3.87-3.13-7-7-7s-7 3.13-7 7a6.88 6.88 0 0 0 .75 3.12 4.15 4.15 0 0 0-1.75 3.38c0 2.2 1.8 4 4 4h8c2.2 0 4-1.8 4-4a4.15 4.15 0 0 0-1.75-3.38 6.88 6.88 0 0 0 .75-3.12z"/><path d="M12 3v18M12 11l4 2M12 8l-3 1.5"/></svg>
+                      </div>`;
+        } else {
+          iconHtml = `<div class="bg-stone-800 text-stone-300 p-1.5 rounded-full border border-stone-500 shadow-sm flex items-center justify-center w-8 h-8 opacity-70">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      </div>`;
+        }
+
+        const customIcon = L.divIcon({
+          className: 'cafe-map-pin',
+          html: iconHtml,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([cafe.latitude, cafe.longitude], { icon: customIcon });
+
+        let popupContent = '';
+        if (isUnlocked) {
+          popupContent = `
+            <div class="p-1 font-sans text-wood-950">
+              <h3 class="font-bold text-forest-900 text-sm">🌲 ${escapeHTML(cafe.name)}</h3>
+              <p class="text-[10px] text-water-600 mt-1 font-semibold">現在地から約 ${(distance / 1000).toFixed(1)} km</p>
+              <p class="text-[10px] text-wood-600">発見者: ${escapeHTML(cafe.authorName || '名無しの探索者')} さん</p>
+              <p class="text-[10.5px] text-wood-700 italic border-t border-forest-100 pt-1 mt-1">"${escapeHTML(cafe.hint)}"</p>
+            </div>
+          `;
+        } else {
+          popupContent = `
+            <div class="p-1 font-sans text-wood-950">
+              <h3 class="font-bold text-stone-500 text-xs flex items-center gap-1">
+                🔒 深い霧の中の隠れ家
+              </h3>
+              <p class="text-[10px] text-stone-600 mt-1">現在地から約 ${(distance / 1000).toFixed(1)} km</p>
+              <p class="text-[10px] text-water-700 bg-water-50 p-1.5 rounded border border-water-100 mt-1">
+                あと <strong class="text-water-600">${((distance - 5000) / 1000).toFixed(1)} km</strong> 進むと、霧が晴れます。
+              </p>
+            </div>
+          `;
+        }
+
+        marker.bindPopup(popupContent);
+        cafeMarkersGroup.addLayer(marker);
+      });
+    }
+
+    // タイムライン描画
+    function renderTimeline() {
+      const container = document.getElementById('postTimeline');
+      container.innerHTML = '';
+
+      if (postsData.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white p-8 rounded-2xl border border-forest-100 text-center text-forest-700">
+            <i data-lucide="trees" class="w-8 h-8 text-forest-200 mx-auto mb-2"></i>
+            <p class="text-sm">森のこのエリアには、まだ誰も記録を残していません。</p>
+            <p class="text-xs text-forest-600 mt-1">あなたが最初の発見者として、深き森に歴史を刻みましょう！</p>
+          </div>
+        `;
+        lucide.createIcons();
+        document.getElementById('activeCount').innerText = '0';
+        return;
+      }
+
+      let activeCount = 0;
+
+      postsData.forEach(cafe => {
+        const distance = getDistanceInMeters(myLatitude, myLongitude, cafe.latitude, cafe.longitude);
+        const isUnlocked = distance <= 5000; // 5km以内
+
+        if (isUnlocked) {
+          activeCount++;
+        }
+
+        const formattedTime = formatTime(cafe.createdAt);
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-2xl border border-forest-100 shadow-sm overflow-hidden flex flex-col sm:flex-row transition-all duration-300 hover:shadow-md";
+
+        if (isUnlocked) {
+          // --- アンロック（ご近所・森の霧が晴れた状態） ---
+          card.innerHTML = `
+            <!-- 木漏れ日画像 (Base64またはURLを直接指定可能) -->
+            <div class="sm:w-1/3 h-48 sm:h-auto relative overflow-hidden bg-forest-50">
+              <img src="${cafe.photo}" alt="${escapeHTML(cafe.name)}" class="w-full h-full object-cover">
+              <span class="absolute top-2 left-2 bg-water-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                <i data-lucide="droplet" class="w-3 h-3"></i> 霧が晴れました
+              </span>
+            </div>
+            <!-- 情報コンテンツ -->
+            <div class="p-5 sm:w-2/3 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-2 mb-1.5">
+                  <span class="text-[10px] text-water-600 bg-water-50 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
+                    <i data-lucide="footprints" class="w-3 h-3"></i>
+                    距離：${(distance / 1000).toFixed(1)} km
+                  </span>
+                  <span class="text-[10px] text-forest-700">${formattedTime}</span>
+                </div>
+                <h3 class="text-lg font-bold text-forest-900 mb-1 flex items-center gap-1.5">
+                  <span class="text-forest-700">🌲</span> ${escapeHTML(cafe.name)}
+                </h3>
+                <p class="text-xs text-forest-700 bg-forest-50 p-2 rounded-lg border border-forest-100 italic mb-3">"${escapeHTML(cafe.hint)}"</p>
+                <p class="text-sm text-wood-900 leading-relaxed font-sans mb-3">${escapeHTML(cafe.comment)}</p>
+                <p class="text-xs text-wood-600 flex items-center gap-1">
+                  <i data-lucide="user" class="w-3.5 h-3.5 text-forest-700"></i>
+                  発見者: <strong class="text-forest-800">${escapeHTML(cafe.authorName || '名無しの探索者')}</strong> さん
+                </p>
+              </div>
+
+              <!-- 位置詳細 -->
+              <div class="mt-4 pt-3 border-t border-forest-50 flex justify-between items-center text-xs">
+                <span class="text-forest-700 font-mono">
+                  📍 ${cafe.latitude.toFixed(4)}, ${cafe.longitude.toFixed(4)}
+                </span>
+                <button onclick="zoomToCafe(${cafe.latitude}, ${cafe.longitude})" class="text-water-600 hover:text-water-800 font-bold flex items-center gap-0.5">
+                  地図でそこへ歩く <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          // --- ロック状態（木漏れ日の彼方、深い霧） ---
+          card.innerHTML = `
+            <!-- ボカシ画像 -->
+            <div class="sm:w-1/3 h-44 sm:h-auto relative overflow-hidden bg-forest-900">
+              <img src="${cafe.photo}" alt="Hidden Forest" class="w-full h-full object-cover locked-blur">
+              <div class="absolute inset-0 bg-forest-950/65 flex items-center justify-center">
+                <div class="text-center p-3">
+                  <div class="bg-forest-900/80 border border-forest-700 rounded-full w-10 h-10 flex items-center justify-center mx-auto mb-1 text-water-400 shadow-md">
+                    <i data-lucide="lock" class="w-5 h-5"></i>
+                  </div>
+                  <span class="text-[10px] text-forest-200 font-bold bg-forest-800 px-2.5 py-0.5 rounded-full">
+                    約 ${(distance / 1000).toFixed(1)} km 先の茂み
+                  </span>
+                </div>
+              </div>
+            </div>
+            <!-- 気配ヒントのみ -->
+            <div class="p-5 sm:w-2/3 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-2 mb-1">
+                  <span class="text-[10px] text-forest-700 flex items-center gap-1">
+                    <i data-lucide="eye-off" class="w-3.5 h-3.5"></i>
+                    深い霧の向こう
+                  </span>
+                  <span class="text-[10px] text-forest-700">${formattedTime}</span>
+                </div>
+                
+                <div class="flex items-center gap-1.5 mb-2">
+                  <span class="text-base font-bold text-forest-700">🔒 秘密の隠れ家</span>
+                </div>
+
+                <!-- 森のヒント -->
+                <div class="bg-forest-100/50 p-3 rounded-xl border border-forest-200/50 mb-2">
+                  <span class="text-[9px] text-forest-800 font-bold block mb-0.5 uppercase tracking-wider">森に漂うかすかな気配（ヒント）:</span>
+                  <p class="text-xs text-wood-800 italic">"${escapeHTML(cafe.hint)}"</p>
+                </div>
+
+                <p class="text-xs text-forest-700 mt-2">
+                  ※霧を晴らして本当の姿を見るには、あと <strong class="text-water-600 font-bold">${((distance - 5000) / 1000).toFixed(1)} km</strong> 実際に近づく必要があります。
+                </p>
+              </div>
+
+              <!-- 未解除時 -->
+              <div class="mt-4 pt-3 border-t border-forest-50 flex justify-between items-center text-xs">
+                <span class="text-forest-700">霧に閉ざされています</span>
+                <span class="text-water-600 font-semibold flex items-center gap-1">
+                  歩みを進めよう <i data-lucide="footprints" class="w-4 h-4"></i>
+                </span>
+              </div>
+            </div>
+          `;
+        }
+
+        container.appendChild(card);
+      });
+
+      document.getElementById('activeCount').innerText = activeCount;
+      lucide.createIcons();
+    }
+
+    // マップ移動
+    window.zoomToCafe = function(lat, lng) {
+      if (map) {
+        map.setView([lat, lng], 14);
+        window.scrollTo({ top: 120, behavior: 'smooth' });
+      }
+    };
+
+    // 時間表示
+    function formatTime(timestamp) {
+      if (!timestamp) return '遥か昔';
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+
+      if (diffMs < 60000) return 'たった今';
+      if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}分前`;
+      if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}時間前`;
+      
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}/${m}/${d}`;
+    }
+
+    // HTMLエスケープ
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+    }
+
+    // メッセージモーダル
+    function showMessageModal(title, text) {
+      const oldModal = document.getElementById('custom-modal');
+      if (oldModal) oldModal.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'custom-modal';
+      modal.className = "fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-forest-900/70 backdrop-blur-xs transition-opacity duration-300";
+      modal.innerHTML = `
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-forest-100 transform scale-95 transition-transform duration-300">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="bg-water-50 text-water-600 p-2.5 rounded-xl border border-water-100">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="lucide lucide-trees"><path d="M20 10c0-3.87-3.13-7-7-7s-7 3.13-7 7a6.88 6.88 0 0 0 .75 3.12 4.15 4.15 0 0 0-1.75 3.38c0 2.2 1.8 4 4 4h8c2.2 0 4-1.8 4-4a4.15 4.15 0 0 0-1.75-3.38 6.88 6.88 0 0 0 .75-3.12z"/><path d="M12 3v18M12 11l4 2M12 8l-3 1.5"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-forest-900">${escapeHTML(title)}</h3>
+          </div>
+          <p class="text-sm text-wood-900 leading-relaxed mb-6">${escapeHTML(text)}</p>
+          <div class="flex justify-end">
+            <button id="closeModalBtn" class="bg-forest-700 hover:bg-forest-800 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition">
+              森へ戻る
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      document.getElementById('closeModalBtn').addEventListener('click', () => {
+        modal.remove();
+      });
+    }
+
+  </script>
+</body>
+</html>
